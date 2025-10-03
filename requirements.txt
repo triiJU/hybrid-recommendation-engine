@@ -1,16 +1,56 @@
+###############################################################################
+# Hybrid Recommendation Engine - Unified Requirements (All-in-One)
+# Keep everything here; users who want a lighter install can manually exclude
+# the clearly marked OPTIONAL sections when installing.
+###############################################################################
+
+########## Core Data & Numerical ##########
 pandas==2.2.2
 numpy==1.26.4
 scikit-learn==1.5.1
 scipy==1.13.1
-torch==2.3.1
-torchvision==0.18.1
-tqdm==4.66.4
-optuna==3.6.1
-mlflow==2.14.3
-requests==2.32.3
-beautifulsoup4==4.12.3
-sentence-transformers==2.7.0
-faiss-cpu==1.7.4
 pyyaml==6.0.2
 tabulate==0.9.0
+tqdm==4.66.4
+
+########## Core Modeling (Classical + Neural) ##########
+torch==2.3.1
+# If you do NOT use image features, you can remove torchvision:
+torchvision==0.18.1
+
+########## Optimization / Tuning ##########
+optuna==3.6.1
+
+########## Experiment Tracking (Optional but Enabled) ##########
+mlflow==2.14.3
+
+########## Semantic / Embedding / Approximate Similarity (Optional / Heavy) ##########
+# NOTE: These can slow installs, especially on Windows. If a user wants a lighter
+# environment, they can comment them out BEFORE running pip install.
+sentence-transformers==2.7.0
+faiss-cpu==1.7.4
+
+########## Web API Layer ##########
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==1.10.15
+
+########## Data Access / Utilities ##########
+requests==2.32.3
+beautifulsoup4==4.12.3  # Only needed if scraping / HTML parsing; remove if unused.
+
+########## Testing ##########
 pytest==8.2.2
+
+###############################################################################
+# INSTALL NOTES
+# - Standard install:    pip install -r requirements.txt
+# - Light install (skip heavy optional deps): manually comment out sentence-transformers,
+#   faiss-cpu, mlflow (if not needed), torchvision (if no image tasks), beautifulsoup4 (if unused).
+#
+# Windows / faiss-cpu:
+#   If faiss-cpu fails on Windows, temporarily comment that line out and proceed.
+#
+# Reproducibility:
+#   Consider using a lock tool (pip-tools or uv) later for transitive pinning.
+###############################################################################

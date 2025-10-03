@@ -29,6 +29,15 @@ hybrid:
 evaluate:
 	$(PY) -m src.evaluation --train_path $(PROC_DIR)/train.csv --test_path $(PROC_DIR)/test.csv --k 10
 
+api:
+	uvicorn api.app:app --reload --port 8080
+
+docker-build:
+	docker build -t hybrid-recommender:latest .
+
+docker-run:
+	docker run -p 8080:8080 hybrid-recommender:latest
+
 alpha:
 	$(PY) scripts/alpha_sweep.py --alphas 0.3 0.5 0.7 0.9 --k 10
 

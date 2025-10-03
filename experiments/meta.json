@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-10-03T11:08:36.579363",
+  "git_commit": "f71042caebf7b657b34a205a23cd2ce624c47aa4",
+  "seed": 42,
+  "weights": {
+    "cf": 0.6,
+    "content": 0.4,
+    "neural": 0.0
+  },
+  "model_presence": {
+    "content": true,
+    "neural": false
+  }
+}

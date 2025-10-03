@@ -14,7 +14,24 @@ class ContentModel:
     def __init__(self, max_features=5000):
         self.vectorizer = TfidfVectorizer(max_features=max_features, stop_words="english")
 
-    def fit(self, items_df, text_col="title"):
+    def fit(self, items_df_or_train=None, text_col="title", items_path=None):
+        """
+        Fit the content model.
+        
+        Args:
+            items_df_or_train: DataFrame with item metadata, or training data (ignored if items_path provided)
+            text_col: Column name for text content
+            items_path: Path to items file (if provided, loads items from this path)
+        """
+        # If items_path is provided, load from file (API usage pattern)
+        if items_path is not None:
+            items_df = load_items_file(items_path)
+        # Otherwise use the provided dataframe
+        elif items_df_or_train is not None:
+            items_df = items_df_or_train
+        else:
+            raise ValueError("Either items_df or items_path must be provided")
+        
         self.items_df = items_df.reset_index(drop=True)
         self.matrix = self.vectorizer.fit_transform(self.items_df[text_col].fillna(""))
 

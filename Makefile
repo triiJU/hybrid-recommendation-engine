@@ -24,7 +24,7 @@ neural:
 	$(PY) -m src.neural_cf --train_path $(PROC_DIR)/train.csv --epochs 10
 
 hybrid:
-	$(PY) -m src.hybrid --alpha 0.7 --train_path $(PROC_DIR)/train.csv --test_path $(PROC_DIR)/test.csv --items_path $(DATA_DIR)/ml-100k/u.item
+	$(PY) -m src.hybrid --w_cf 0.6 --w_content 0.4 --w_neural 0.0 --train_path $(PROC_DIR)/train.csv --test_path $(PROC_DIR)/test.csv --items_path $(DATA_DIR)/ml-100k/u.item
 
 evaluate:
 	$(PY) -m src.evaluation --train_path $(PROC_DIR)/train.csv --test_path $(PROC_DIR)/test.csv --k 10

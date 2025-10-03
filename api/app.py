@@ -98,8 +98,10 @@ def bootstrap():
 
     # Content
     try:
+        from src.content_based import load_items_file
+        items_df = load_items_file(ITEMS_PATH)
         content = ContentRecommender()
-        content.fit(train, items_path=ITEMS_PATH)
+        content.fit(items_df, text_col="title")
         CTX.content = content
     except Exception as e:
         LOGGER.exception("Content model failed: %s", e)

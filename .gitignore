@@ -29,9 +29,10 @@ models/*.pt
 
 # Data
 data/processed/
+data/ml-100k/
 
-# Experiments (allow tracking except specific exclusions)
-# experiments/*.json can be tracked selectively
+# Experiments (JSON files are generated, not tracked)
+experiments/*.json
 
 # IDE
 .vscode/

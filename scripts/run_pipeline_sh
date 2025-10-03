@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[PIPELINE] Download"
+python -m src.data_loading --download_movielens
+
+echo "[PIPELINE] Preprocess"
+python -m src.preprocess --ratings_path data/ml-100k/u.data --out_dir data/processed --min_interactions 5
+
+echo "[PIPELINE] Popularity Baseline"
+python -m src.popularity --train_path data/processed/train.csv
+
+echo "[PIPELINE] CF User & Item"
+python -m src.cf_baseline --train_path data/processed/train.csv --mode user
+python -m src.cf_baseline --train_path data/processed/train.csv --mode item
+
+echo "[PIPELINE] Neural CF"
+python -m src.neural_cf --train_path data/processed/train.csv --epochs 10
+
+echo "[PIPELINE] Hybrid Alpha=0.7"
+python -m src.hybrid --alpha 0.7 --train_path data/processed/train.csv --test_path data/processed/test.csv --items_path data/ml-100k/u.item
+
+echo "[PIPELINE] Evaluation"
+python -m src.evaluation --train_path data/processed/train.csv --test_path data/processed/test.csv --k 10
+
+echo "[PIPELINE] Cold-Start"
+python -m src.cold_start --train_path data/processed/train.csv --test_path data/processed/test.csv --k 10
+
+echo "[PIPELINE] Done."

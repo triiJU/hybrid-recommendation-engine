@@ -24,11 +24,65 @@ class NeuralCF(nn.Module):
             nn.ReLU(),
             nn.Linear(64,1)
         )
+        self.user_map = None
+        self.item_map = None
+        
     def forward(self, users, items):
         ue = self.user_emb(users)
         ie = self.item_emb(items)
         x = torch.cat([ue, ie], dim=-1)
         return self.mlp(x).squeeze(-1)
+    
+    @classmethod
+    def load_from_file(cls, path):
+        """
+        Load a saved neural CF model from file.
+        
+        Args:
+            path: Path to the saved model file
+            
+        Returns:
+            NeuralCF instance with loaded weights and mappings
+        """
+        payload = torch.load(path, map_location='cpu')
+        user_map = payload['user_map']
+        item_map = payload['item_map']
+        state_dict = payload['state_dict']
+        
+        # Instantiate model with correct dimensions
+        model = cls(len(user_map), len(item_map))
+        model.load_state_dict(state_dict)
+        model.user_map = user_map
+        model.item_map = item_map
+        model.eval()
+        
+        return model
+    
+    def predict_single(self, user_id, item_id):
+        """
+        Predict rating for a single user-item pair.
+        
+        Args:
+            user_id: User ID
+            item_id: Item ID
+            
+        Returns:
+            Float rating prediction, or 0.0 if user/item not in training set
+        """
+        if self.user_map is None or self.item_map is None:
+            return 0.0
+            
+        if user_id not in self.user_map or item_id not in self.item_map:
+            return 0.0
+        
+        user_idx = self.user_map[user_id]
+        item_idx = self.item_map[item_id]
+        
+        with torch.no_grad():
+            u_tensor = torch.tensor([user_idx], dtype=torch.long)
+            i_tensor = torch.tensor([item_idx], dtype=torch.long)
+            pred = self.forward(u_tensor, i_tensor)
+            return float(pred.item())
 
 def train_loop(model, loader, val_loader, epochs, device, lr):
     opt = torch.optim.Adam(model.parameters(), lr=lr)

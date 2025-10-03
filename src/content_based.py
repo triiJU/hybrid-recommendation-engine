@@ -52,3 +52,45 @@ class ContentModel:
             final = alpha*cf_score + (1-alpha)*content_score
             recs.append((item_id, final))
         return sorted(recs, key=lambda x: x[1], reverse=True)[:top_n]
+
+    def multi_anchor_recommend(self, anchor_item_ids, exclude=None, top_n=100):
+        """
+        Aggregate similarities for multiple anchor items.
+        
+        Args:
+            anchor_item_ids: List of item IDs to use as anchors
+            exclude: Set of item IDs to exclude from recommendations
+            top_n: Number of recommendations to return
+            
+        Returns:
+            List of (item_id, average_similarity_score) tuples
+        """
+        if exclude is None:
+            exclude = set()
+        
+        agg = {}
+        valid = 0
+        
+        for aid in anchor_item_ids:
+            if aid not in set(self.items_df.item_id):
+                continue
+            valid += 1
+            
+            sim_list = self.similar_items(aid, top_n=top_n*2)
+            for item_id, sim_score in sim_list:
+                if item_id == aid or item_id in exclude:
+                    continue
+                agg[item_id] = agg.get(item_id, 0.0) + sim_score
+        
+        # Average by number of valid anchors
+        denom = max(valid, 1)
+        ranked = sorted(
+            ((iid, sc / denom) for iid, sc in agg.items()),
+            key=lambda x: x[1],
+            reverse=True
+        )[:top_n]
+        
+        return ranked
+
+# Alias for API naming consistency
+ContentRecommender = ContentModel

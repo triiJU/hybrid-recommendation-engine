@@ -6,7 +6,7 @@ A modular hybrid recommender system supporting:
 - Collaborative Filtering (user–user & item–item cosine)
 - Content-Based Ranking (TF-IDF over item metadata)
 - Neural Collaborative Filtering (PyTorch embeddings + MLP)
-- Hybrid Blending (weighted alpha)
+- Hybrid Blending (tri-weight: CF, content, neural)
 - Alpha sweep & Optuna hyperparameter tuning
 - Cold-start evaluation (new / sparse users & items)
 - Ranking Metrics: Precision@K, Recall@K, NDCG@K, Coverage, Item Diversity
@@ -24,7 +24,7 @@ Pure collaborative filtering struggles with cold-start and sparse data. Content-
 | Collaborative Filtering | `src/cf_baseline.py` | User–User / Item–Item cosine similarity |
 | Content-based | `src/content_based.py` | TF-IDF item embeddings & similarity |
 | Neural CF | `src/neural_cf.py` | Embeddings + MLP (explicit ratings regression) |
-| Hybrid blend | `src/hybrid.py` | Alpha-weighted combination of CF + content |
+| Hybrid blend | `src/hybrid.py` | Tri-weight combination of CF + content + neural |
 | Metrics | `src/metrics.py` | Precision@K, Recall@K, NDCG@K, Coverage, Diversity |
 | Evaluation | `src/evaluation.py` | Unified baseline evaluation |
 | Alpha sweep | `scripts/alpha_sweep.py` | Evaluate multiple α values |
@@ -42,8 +42,8 @@ Pure collaborative filtering struggles with cold-start and sparse data. Content-
 | Item-CF               | 0.26 | 0.13 | 0.20    | 0.29     | 0.35      |
 | Content (TF-IDF)      | 0.19 | 0.10 | 0.15    | 0.41     | 0.49      |
 | Neural CF             | 0.29 | 0.16 | 0.23    | 0.36     | 0.39      |
-| Hybrid (α=0.7)        | 0.31 | 0.17 | 0.24    | 0.44     | 0.46      |
-| Hybrid + Neural Blend | 0.32 | 0.18 | 0.25    | 0.45     | 0.45      |
+| Hybrid (CF=0.6, Content=0.4)        | 0.31 | 0.17 | 0.24    | 0.44     | 0.46      |
+| Hybrid (CF=0.5, Content=0.3, Neural=0.2) | 0.32 | 0.18 | 0.25    | 0.45     | 0.45      |
 
 (Replace with real outputs after running.)
 
@@ -83,11 +83,41 @@ make coldstart
 ```
 
 ## Example Hybrid Run
+
+### Tri-Weight Blending
 ```bash
-python -m src.hybrid --alpha 0.7 --top_k 10 \
+# CF + Content blend (no neural)
+python -m src.hybrid --w_cf 0.6 --w_content 0.4 --w_neural 0.0 \
   --train_path data/processed/train.csv \
   --test_path data/processed/test.csv \
   --items_path data/ml-100k/u.item
+
+# CF + Content + Neural blend (neural weight ignored if model not found)
+python -m src.hybrid --w_cf 0.5 --w_content 0.3 --w_neural 0.2 \
+  --train_path data/processed/train.csv \
+  --test_path data/processed/test.csv \
+  --items_path data/ml-100k/u.item \
+  --neural_model_path models/neural_cf.pt
+```
+
+**Note:** If the neural model is not trained/available, the neural weight will be automatically set to 0 and weights will be renormalized.
+
+## API Usage
+
+The system provides a FastAPI-based REST API for serving recommendations:
+
+```bash
+# Start the API server
+uvicorn api.app:app --reload
+
+# Get recommendations with custom weights
+curl "http://localhost:8000/recommend?user_id=1&k=10&w_cf=0.6&w_content=0.4&w_neural=0.0"
+
+# Check API health
+curl "http://localhost:8000/health"
+
+# Get metadata
+curl "http://localhost:8000/meta"
 ```
 
 ## Alpha Sweep

@@ -28,8 +28,6 @@ mlflow==2.14.3
 # NOTE: These can slow installs, especially on Windows. If a user wants a lighter
 # environment, they can comment them out BEFORE running pip install.
 sentence-transformers==2.7.0
-faiss-cpu==1.7.4
-
 ########## Web API Layer ##########
 fastapi==0.111.0
 uvicorn==0.30.1

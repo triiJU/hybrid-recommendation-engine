@@ -142,7 +142,9 @@ python -m src.cold_start --train_path data/processed/train.csv \
 - Candidate generation → re-ranking pipeline
 - Feature store for user/item embeddings
 
+```
 https://gpt-website-builder-1-0.onrender.com/gpt/0acbab5a.html
+```
 
 ## Future Work
 - Transformer text embeddings

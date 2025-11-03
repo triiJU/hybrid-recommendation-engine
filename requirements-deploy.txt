@@ -1,0 +1,13 @@
+# Minimal backend dependencies for Render deployment
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==1.10.15
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+scipy==1.13.1
+tabulate==0.9.0
+tqdm==4.66.4
+requests==2.32.3
+# light torch runtime (no vision / transformers)
+torch==2.3.1

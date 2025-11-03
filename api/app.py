@@ -2,32 +2,42 @@ import os, time, logging
 from functools import lru_cache
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-# Import your existing modules (adjust names if different)
+# Import existing modules
 from src.cf_baseline import CollaborativeFiltering
 from src.content_based import ContentRecommender
 from src.popularity import PopularityModel
-from src.neural_cf import NeuralCF  # OPTIONAL; handle absence
+from src.neural_cf import NeuralCF
 from src.utils import set_seed
 
+# ------------------------------------------------------------
+# Setup Logging
+# ------------------------------------------------------------
 LOGGER = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO)
 
-# Paths / env
+# ------------------------------------------------------------
+# Environment Paths & Defaults
+# ------------------------------------------------------------
 DATA_PROCESSED_DIR = os.getenv("PROCESSED_DIR", "data/processed")
 TRAIN_PATH = os.getenv("TRAIN_PATH", f"{DATA_PROCESSED_DIR}/train.csv")
 ITEMS_PATH = os.getenv("ITEMS_PATH", "data/ml-100k/u.item")
 NEURAL_MODEL_PATH = os.getenv("NEURAL_MODEL_PATH", "models/neural_cf.pt")
 SEED = int(os.getenv("SEED", "42"))
 
-# Default blend weights (can override via query params)
 DEFAULT_W_CF = float(os.getenv("W_CF", "0.6"))
 DEFAULT_W_CONTENT = float(os.getenv("W_CONTENT", "0.4"))
 DEFAULT_W_NEURAL = float(os.getenv("W_NEURAL", "0.0"))
 
-FALLBACK_K = 50  # internal candidate pool size
+FALLBACK_K = 50
 
+# ------------------------------------------------------------
+# Data Models
+# ------------------------------------------------------------
 class RecommendResponse(BaseModel):
     user_id: int
     recommendations: List[dict]
@@ -42,6 +52,9 @@ class BatchRequest(BaseModel):
 class BatchResponse(BaseModel):
     results: List[RecommendResponse]
 
+# ------------------------------------------------------------
+# Context Object
+# ------------------------------------------------------------
 class Ctx:
     cf: Optional[CollaborativeFiltering] = None
     content: Optional[ContentRecommender] = None
@@ -52,8 +65,28 @@ class Ctx:
     meta = {}
 
 CTX = Ctx()
-app = FastAPI(title="Hybrid Recommender API", version="1.0.0")
 
+# ------------------------------------------------------------
+# FastAPI App Setup
+# ------------------------------------------------------------
+app = FastAPI(title="Hybrid Recommender API", version="2.0")
+
+# Enable CORS (Frontend Integration)
+origins = ["*"]  # Replace "*" with your frontend domain in production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve minimal frontend (optional)
+app.mount("/", StaticFiles(directory="api/static", html=True), name="static")
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
 def _exists(p: str) -> bool:
     return p and os.path.exists(p)
 
@@ -77,12 +110,18 @@ def _normalize(w_cf, w_content, w_neural, neural_available):
         return 1.0, 0.0, 0.0
     return w_cf/total, w_content/total, w_neural/total
 
+# ------------------------------------------------------------
+# Bootstrap Models
+# ------------------------------------------------------------
 def bootstrap():
     import pandas as pd
     set_seed(SEED)
+
+    os.makedirs("models", exist_ok=True)
     if not _exists(TRAIN_PATH):
         LOGGER.error("TRAIN_PATH missing: %s (run preprocess first)", TRAIN_PATH)
         return
+
     train = pd.read_csv(TRAIN_PATH)
     CTX.user_hist = train.groupby("user_id")["item_id"].apply(list).to_dict()
 
@@ -109,10 +148,12 @@ def bootstrap():
     # Neural (optional)
     if _exists(NEURAL_MODEL_PATH):
         try:
-            neural = NeuralCF.load_from_file(NEURAL_MODEL_PATH)  # implement this if not present
+            neural = NeuralCF.load_from_file(NEURAL_MODEL_PATH)
             CTX.neural = neural
         except Exception as e:
             LOGGER.warning("Neural load failed: %s", e)
+    else:
+        LOGGER.info("No neural model found at %s", NEURAL_MODEL_PATH)
 
     CTX.item_titles = _load_titles(ITEMS_PATH)
     CTX.meta = {
@@ -123,11 +164,14 @@ def bootstrap():
     }
     LOGGER.info("Bootstrap complete. Rows=%d", len(train))
 
+# ------------------------------------------------------------
+# Recommendation Logic
+# ------------------------------------------------------------
 @lru_cache(maxsize=4096)
 def _serve(user_id: int, k: int, w_cf: float, w_content: float, w_neural: float) -> RecommendResponse:
+    if CTX.cf is None or not CTX.user_hist:
+        raise HTTPException(status_code=503, detail="Models not loaded yet. Try again shortly.")
     start = time.time()
-    if CTX.cf is None:
-        raise HTTPException(status_code=500, detail="Models not loaded.")
     hist = CTX.user_hist.get(user_id, [])
     used_neural = CTX.neural is not None
     w_cf, w_content, w_neural = _normalize(w_cf, w_content, w_neural, used_neural)
@@ -149,9 +193,7 @@ def _serve(user_id: int, k: int, w_cf: float, w_content: float, w_neural: float)
 
     # Neural
     if used_neural:
-        candidates = list(scores.keys())
-        if not candidates and CTX.pop:
-            candidates = [i for i,_ in CTX.pop.top_n(FALLBACK_K)]
+        candidates = list(scores.keys()) or [i for i,_ in CTX.pop.top_n(FALLBACK_K)]
         for iid in candidates:
             try:
                 nscore = CTX.neural.predict_single(user_id, iid)
@@ -182,16 +224,25 @@ def _serve(user_id: int, k: int, w_cf: float, w_content: float, w_neural: float)
         latency_sec=round(time.time()-start, 4)
     )
 
+# ------------------------------------------------------------
+# API Routes
+# ------------------------------------------------------------
 @app.on_event("startup")
 def _on_startup():
     bootstrap()
 
 @app.get("/health")
 def health():
-    return {"status":"ok", "cf_loaded": CTX.cf is not None}
+    return {"status": "ok", "cf_loaded": CTX.cf is not None}
+
+@app.get("/ready")
+def ready():
+    ok = CTX.cf is not None and bool(CTX.user_hist)
+    return JSONResponse(content={"ready": ok})
 
 @app.get("/meta")
-def meta(): return CTX.meta
+def meta(): 
+    return CTX.meta
 
 @app.get("/recommend", response_model=RecommendResponse)
 def recommend(
@@ -217,4 +268,4 @@ def batch(body: BatchRequest):
 def refresh():
     _serve.cache_clear()
     bootstrap()
-    return {"status":"refreshed", "timestamp": time.time()}
+    return {"status": "refreshed", "timestamp": time.time()}
